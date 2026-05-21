@@ -1,110 +1,75 @@
-# Data Science Project Boilerplate
+# Decision Tree Classifier — Diabetes Prediction
 
-This boilerplate is designed to kickstart data science projects by providing a basic setup for database connections, data processing, and machine learning model development. It includes a structured folder organization for your datasets and a set of pre-defined Python packages necessary for most data science tasks.
+> End-to-end binary classification pipeline on the Pima Indians Diabetes dataset: full EDA with outlier handling and feature selection, then a Decision Tree trained and tuned with GridSearchCV — lifting accuracy from 68.2% to 71.4%.
 
-## Structure
+---
 
-The project is organized as follows:
+## Problem
 
-- **`src/app.py`** → Main Python script where your project will run.
-- **`src/explore.ipynb`** → Notebook for exploration and testing. Once exploration is complete, migrate the clean code to `app.py`.
-- **`src/utils.py`** → Auxiliary functions, such as database connection.
-- **`requirements.txt`** → List of required Python packages.
-- **`models/`** → Will contain your SQLAlchemy model classes.
-- **`data/`** → Stores datasets at different stages:
-  - **`data/raw/`** → Raw data.
-  - **`data/interim/`** → Temporarily transformed data.
-  - **`data/processed/`** → Data ready for analysis.
+Predict whether a patient has diabetes based on diagnostic measurements. A hospital wants an interpretable model — one that can be visualised as a tree of clinical decision rules, not a black box.
 
+## Dataset
 
-## ⚡ Initial Setup in Codespaces (Recommended)
+- **Source:** Pima Indians Diabetes dataset (768 rows × 9 features)
+- **Target:** `Outcome` — 1 = diabetes, 0 = no diabetes (65% / 35% class split)
+- **Features:** Pregnancies, Glucose, BloodPressure, SkinThickness, Insulin, BMI, DiabetesPedigreeFunction, Age
 
-No manual setup is required, as **Codespaces is automatically configured** with the predefined files created by the academy for you. Just follow these steps:
+## EDA & Preprocessing Pipeline
 
-1. **Wait for the environment to configure automatically**.
-   - All necessary packages and the database will install themselves.
-   - The automatically created `username` and `db_name` are in the **`.env`** file at the root of the project.
-2. **Once Codespaces is ready, you can start working immediately**.
+| Step | Action |
+|---|---|
+| Impossible zeros | Insulin (48.7% zeros) and SkinThickness (29.6% zeros) dropped entirely |
+| Zero imputation | Remaining impossible zeros in Glucose, BloodPressure, BMI replaced with group-stratified median |
+| Outlier capping | IQR method on 3 right-skewed features: Pregnancies, DiabetesPedigreeFunction, Age |
+| Scaling | StandardScaler on all 6 remaining features |
+| Feature selection | SelectKBest (f_classif) → top 4: **Glucose, BMI, Age, Pregnancies** |
+| Split | 80/20 stratified train/test (614 train / 154 test) |
 
+**Key EDA finding:** Glucose has the strongest single correlation with Outcome (≈ 0.47). Diabetic patients cluster toward the high-Glucose, high-BMI corner in scatter plots — a clear separation that the tree exploits.
 
-## 💻 Local Setup (Only if you can't use Codespaces)
+## Model Results
 
-**Prerequisites**
+| Model | Accuracy | Notes |
+|---|---|---|
+| Baseline tree (default params) | **68.2%** | Unpruned — overfits training data |
+| Tuned tree (GridSearchCV) | **71.4%** | criterion=entropy, max_depth=5, min_samples_leaf=4 |
 
-Make sure you have Python 3.11+ installed on your machine. You will also need pip to install the Python packages.
+**GridSearchCV:** searched criterion × max_depth × min_samples_split × min_samples_leaf with 10-fold cross-validation.
 
-**Installation**
+**Tuned classification report:**
 
-Clone the project repository to your local machine.
+| Class | Precision | Recall | F1 |
+|---|---|---|---|
+| No Diabetes | 0.78 | 0.78 | 0.78 |
+| Diabetes | 0.59 | 0.59 | 0.59 |
 
-Navigate to the project directory and install the required Python packages:
+## Key Takeaways
+
+- **Data cleaning is the real work:** Insulin and SkinThickness had so many biologically impossible zeros (~49% and ~30%) that imputation would have manufactured noise — dropping them was the right call.
+- **Pruning prevents overfitting:** The unpruned tree memorises training samples. Constraining `max_depth=5` forces the model to learn general patterns and improves test accuracy by 3 points.
+- **Class imbalance matters:** The model performs better on the majority class (No Diabetes). With only 54 positive test cases, recall on the diabetic class is still the harder problem.
+
+## Tech Stack
+
+`Python` · `scikit-learn` · `pandas` · `NumPy` · `Matplotlib` · `Seaborn`
+
+## Run It Locally
 
 ```bash
+git clone https://github.com/matthewkane-ml/ML_DecisionTree_MTK.git
+cd ML_DecisionTree_MTK
 pip install -r requirements.txt
+jupyter notebook src/DecisionTreeProject_revised.ipynb
 ```
 
-**Create a database (if necessary)**
+The trained model is saved to `models/` via `pickle`.
 
-Create a new database within the Postgres engine by customizing and executing the following command:
+## What I'd Do Next
 
-```bash
-$ psql -U postgres -c "DO \$\$ BEGIN 
-    CREATE USER my_user WITH PASSWORD 'my_password'; 
-    CREATE DATABASE my_database OWNER my_user; 
-END \$\$;"
-```
-Connect to the Postgres engine to use your database, manipulate tables, and data:
+- Try **Random Forest** or **Gradient Boosting** (XGBoost) on the same dataset to quantify the accuracy gain from ensembling over a single tree
+- Address class imbalance with **SMOTE** oversampling or `class_weight="balanced"` and track F1 rather than accuracy as the primary metric
+- Add **SHAP values** to explain individual predictions — important for any medical use case where the reasoning behind a decision matters as much as the decision itself
 
-```bash
-$ psql -U my_user -d my_database
-```
+---
 
-Once inside PSQL, you can create tables, run queries, insert, update, or delete data, and much more!
-
-**Environment Variables**
-
-Create a .env file in the root directory of the project to store your environment variables, such as your database connection string:
-
-```makefile
-DATABASE_URL="postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB_NAME>"
-
-#example
-DATABASE_URL="postgresql://my_user:my_password@localhost:5432/my_database"
-```
-
-## Running the Application
-
-To run the application, execute the app.py script from the root directory of the project:
-
-```bash
-python src/app.py
-```
-
-## Adding Models
-
-To add SQLAlchemy model classes, create new Python script files within the models/ directory. These classes should be defined according to your database schema.
-
-Example model definition (`models/example_model.py`):
-
-```py
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
-
-Base = declarative_base()
-
-class ExampleModel(Base):
-    __tablename__ = 'example_table'
-    id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(unique=True)
-```
-
-## Working with Data
-
-You can place your raw datasets in the data/raw directory, intermediate datasets in data/interim, and processed datasets ready for analysis in data/processed.
-
-To process data, you can modify the app.py script to include your data processing steps, using pandas for data manipulation and analysis.
-
-## Contributors
-
-This project is maintained by [matthewkane-ml](https://github.com/matthewkane-ml).
+**Author:** Matthew Kane — [LinkedIn](https://www.linkedin.com/in/thomas-k-392094410/) · [GitHub portfolio](https://github.com/matthewkane-ml)

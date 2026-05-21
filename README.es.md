@@ -1,110 +1,75 @@
-# Plantilla de Proyecto de Ciencia de Datos
+# Clasificador de Árbol de Decisión — Predicción de Diabetes
 
-Esta plantilla está diseñada para impulsar proyectos de ciencia de datos proporcionando una configuración básica para conexiones de base de datos, procesamiento de datos, y desarrollo de modelos de aprendizaje automático. Incluye una organización estructurada de carpetas para tus conjuntos de datos y un conjunto de paquetes de Python predefinidos necesarios para la mayoría de las tareas de ciencia de datos.
+> Pipeline completo de clasificación binaria sobre el dataset Pima Indians Diabetes: EDA completo con manejo de outliers y selección de características, seguido de un Árbol de Decisión entrenado y optimizado con GridSearchCV — elevando la precisión del 68,2% al 71,4%.
 
-## Estructura
+---
 
-El proyecto está organizado de la siguiente manera:
+## Problema
 
-- **`src/app.py`** → Script principal de Python donde correrá tu proyecto.
-- **`src/explore.ipynb`** → Notebook para exploración y pruebas. Una vez finalizada la exploración, migra el código limpio a `app.py`.
-- **`src/utils.py`** → Funciones auxiliares, como conexión a bases de datos.
-- **`requirements.txt`** → Lista de paquetes de Python necesarios.
-- **`models/`** → Contendrá tus clases de modelos SQLAlchemy.
-- **`data/`** → Almacena los datasets en diferentes etapas:
-  - **`data/raw/`** → Datos sin procesar.
-  - **`data/interim/`** → Datos transformados temporalmente.
-  - **`data/processed/`** → Datos listos para análisis.
+Predecir si un paciente tiene diabetes basándose en medidas diagnósticas. El hospital quiere un modelo interpretable — uno que pueda visualizarse como un árbol de reglas clínicas de decisión, no una caja negra.
 
+## Dataset
 
-## ⚡ Configuración Inicial en Codespaces (Recomendado)
+- **Fuente:** Dataset Pima Indians Diabetes (768 filas × 9 características)
+- **Target:** `Outcome` — 1 = diabetes, 0 = no diabetes (distribución de clases 65% / 35%)
+- **Características:** Pregnancies, Glucose, BloodPressure, SkinThickness, Insulin, BMI, DiabetesPedigreeFunction, Age
 
-No es necesario realizar ninguna configuración manual, ya que **Codespaces se configura automáticamente** con los archivos predefinidos que ha creado la academia para ti. Simplemente sigue estos pasos:
+## Pipeline de EDA y Preprocesamiento
 
-1. **Espera a que el entorno se configure automáticamente**.
-   - Todos los paquetes necesarios y la base de datos se instalarán por sí mismos.
-   - El `username` y `db_name` creados automáticamente están en el archivo **`.env`** en la raíz del proyecto.
-2. **Una vez que Codespaces esté listo, puedes comenzar a trabajar inmediatamente**.
+| Paso | Acción |
+|---|---|
+| Ceros imposibles | Insulin (48,7% ceros) y SkinThickness (29,6% ceros) eliminadas completamente |
+| Imputación de ceros | Ceros imposibles restantes en Glucose, BloodPressure, BMI reemplazados con mediana estratificada por grupo |
+| Capping de outliers | Método IQR en 3 características con sesgo positivo: Pregnancies, DiabetesPedigreeFunction, Age |
+| Escalado | StandardScaler en las 6 características restantes |
+| Selección de características | SelectKBest (f_classif) → top 4: **Glucose, BMI, Age, Pregnancies** |
+| División | 80/20 estratificada train/test (614 entrenamiento / 154 prueba) |
 
+**Hallazgo clave del EDA:** Glucose tiene la correlación individual más fuerte con Outcome (≈ 0,47). Los casos diabéticos se agrupan hacia la esquina de alto Glucose y alto BMI en los scatter plots — una separación clara que el árbol aprovecha.
 
-## 💻 Configuración en Local (Solo si no puedes usar Codespaces)
+## Resultados del Modelo
 
-**Prerrequisitos**
+| Modelo | Precisión | Notas |
+|---|---|---|
+| Árbol base (parámetros por defecto) | **68,2%** | Sin podar — sobreajusta los datos de entrenamiento |
+| Árbol optimizado (GridSearchCV) | **71,4%** | criterion=entropy, max_depth=5, min_samples_leaf=4 |
 
-Asegúrate de tener Python 3.11+ instalado en tu máquina. También necesitarás pip para instalar los paquetes de Python.
+**GridSearchCV:** buscó criterion × max_depth × min_samples_split × min_samples_leaf con validación cruzada de 10 pliegues.
 
-**Instalación**
+**Informe de clasificación del modelo optimizado:**
 
-Clona el repositorio del proyecto en tu máquina local.
+| Clase | Precisión | Recall | F1 |
+|---|---|---|---|
+| Sin Diabetes | 0,78 | 0,78 | 0,78 |
+| Diabetes | 0,59 | 0,59 | 0,59 |
 
-Navega hasta el directorio del proyecto e instala los paquetes de Python requeridos:
+## Conclusiones Clave
+
+- **La limpieza de datos es el trabajo real:** Insulin y SkinThickness tenían tantos ceros biológicamente imposibles (~49% y ~30%) que la imputación habría generado ruido — eliminarlas fue la decisión correcta.
+- **La poda previene el sobreajuste:** El árbol sin podar memoriza las muestras de entrenamiento. Restringir `max_depth=5` obliga al modelo a aprender patrones generales y mejora la precisión en prueba en 3 puntos.
+- **El desbalance de clases importa:** El modelo rinde mejor en la clase mayoritaria (Sin Diabetes). Con solo 54 casos positivos en el conjunto de prueba, el recall en la clase diabética sigue siendo el problema más difícil.
+
+## Stack Tecnológico
+
+`Python` · `scikit-learn` · `pandas` · `NumPy` · `Matplotlib` · `Seaborn`
+
+## Ejecutar Localmente
 
 ```bash
+git clone https://github.com/matthewkane-ml/ML_DecisionTree_MTK.git
+cd ML_DecisionTree_MTK
 pip install -r requirements.txt
+jupyter notebook src/DecisionTreeProject_revised.ipynb
 ```
 
-**Crear una base de datos (si es necesario)**
+El modelo entrenado se guarda en `models/` mediante `pickle`.
 
-Crea una nueva base de datos dentro del motor Postgres personalizando y ejecutando el siguiente comando: 
+## Próximos Pasos
 
-```bash
-$ psql -U postgres -c "DO \$\$ BEGIN 
-    CREATE USER mi_usuario WITH PASSWORD 'mi_contraseña'; 
-    CREATE DATABASE mi_base_de_datos OWNER mi_usuario; 
-END \$\$;"
-```
-Conéctate al motor Postgres para usar tu base de datos, manipular tablas y datos: 
+- Probar **Random Forest** o **Gradient Boosting** (XGBoost) en el mismo dataset para cuantificar la mejora de precisión del ensamblado frente a un árbol individual
+- Abordar el desbalance de clases con sobremuestreo **SMOTE** o `class_weight="balanced"` y usar F1 como métrica principal en lugar de la precisión
+- Añadir **valores SHAP** para explicar predicciones individuales — importante en cualquier caso de uso médico donde el razonamiento detrás de una decisión importa tanto como la propia decisión
 
-```bash
-$ psql -U mi_usuario -d mi_base_de_datos
-```
+---
 
-¡Una vez que estés dentro de PSQL podrás crear tablas, hacer consultas, insertar, actualizar o eliminar datos y mucho más!
-
-**Variables de entorno**
-
-Crea un archivo .env en el directorio raíz del proyecto para almacenar tus variables de entorno, como tu cadena de conexión a la base de datos:
-
-```makefile
-DATABASE_URL="postgresql://<USUARIO>:<CONTRASEÑA>@<HOST>:<PUERTO>/<NOMBRE_BD>"
-
-#example
-DATABASE_URL="postgresql://mi_usuario:mi_contraseña@localhost:5432/mi_base_de_datos"
-```
-
-## Ejecutando la Aplicación
-
-Para ejecutar la aplicación, ejecuta el script app.py desde la raíz del directorio del proyecto:
-
-```bash
-python src/app.py
-```
-
-## Añadiendo Modelos
-
-Para añadir clases de modelos SQLAlchemy, crea nuevos archivos de script de Python dentro del directorio models/. Estas clases deben ser definidas de acuerdo a tu esquema de base de datos.
-
-Definición del modelo de ejemplo (`models/example_model.py`):
-
-```py
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
-
-Base = declarative_base()
-
-class ExampleModel(Base):
-    __tablename__ = 'example_table'
-    id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(unique=True)
-```
-
-## Trabajando con Datos
-
-Puedes colocar tus conjuntos de datos brutos en el directorio data/raw, conjuntos de datos intermedios en data/interim, y los conjuntos de datos procesados listos para el análisis en data/processed.
-
-Para procesar datos, puedes modificar el script app.py para incluir tus pasos de procesamiento de datos, utilizando pandas para la manipulación y análisis de datos.
-
-## Contribuyentes
-
-Este proyecto es mantenido por [matthewkane-ml](https://github.com/matthewkane-ml).
+**Autor:** Matthew Kane — [LinkedIn](https://www.linkedin.com/in/thomas-k-392094410/) · [Portafolio GitHub](https://github.com/matthewkane-ml)
